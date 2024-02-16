@@ -10,6 +10,7 @@ const predictions = {};
 fs.createReadStream('dataset.csv')
     .pipe(csv())
     .on('data', (row) => {
+        console.log('CSV Row:', row);
         predictions[row[0]] = row[1];
     })
     .on('end', () => {

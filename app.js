@@ -1,11 +1,11 @@
 const express = require('express');
 const fs = require('fs');
 const csv = require('csv-parser');
+const multer = require('multer');
 
 const app = express();
 const port = 8080;
 
-// Parse the CSV file and populate predictions
 const predictions = {};
 fs.createReadStream('dataset.csv')
     .pipe(csv())
@@ -13,7 +13,6 @@ fs.createReadStream('dataset.csv')
         predictions[row[0]] = row[1];
     })
     .on('end', () => {
-        // Start the server after predictions are populated
         startServer(predictions);
     })
     .on('error', (err) => {
@@ -22,16 +21,15 @@ fs.createReadStream('dataset.csv')
     });
 
 function startServer(predictions) {
-    app.post('/', (req, res) => {
-        console.log("Request ->", req);
-        if (!req.files) {
+    const upload = multer({ dest: 'uploads/' });
+
+    app.post('/', upload.single('inputFile'), (req, res) => {
+        if (!req.file) {
             return res.status(400).send('No image file uploaded!');
         }
 
-        const file = req.files.inputFile;
-        const filename = file.name;
+        const filename = req.file.filename;
 
-        // Check if filename exists in predictions
         if (!predictions[filename]) {
             return res.status(404).send('Image not found in dataset!');
         }

@@ -23,6 +23,7 @@ fs.createReadStream('dataset.csv')
 
 function startServer(predictions) {
     app.post('/', (req, res) => {
+        console.log("Request ->", req);
         if (!req.files) {
             return res.status(400).send('No image file uploaded!');
         }

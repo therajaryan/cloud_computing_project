@@ -10,7 +10,6 @@ const predictions = {};
 fs.createReadStream('dataset.csv')
     .pipe(csv())
     .on('data', (row) => {
-        console.log('CSV Row:', row);
         predictions[row['Image']] = row['Results'];
     })
     .on('end', () => {
@@ -29,7 +28,7 @@ function startServer(predictions) {
             return res.status(400).send('No image file uploaded!');
         }
 
-        const filename = req.file.originalname;
+        const filename = req.file.originalname.split('.')[0];
 
         console.log("File -> ", req.file);
         console.log("CSV ->", predictions);

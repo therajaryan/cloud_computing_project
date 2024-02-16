@@ -1,27 +1,26 @@
 const express = require('express');
 const fs = require('fs');
-const csv = require('csv');
+const csv = require('csv-parser');
 
 const app = express();
 const port = 8080;
 
 // Parse the CSV file and populate predictions
-csv.parseFile('dataset.csv', (err, data) => {
-    if (err) {
+const predictions = {};
+fs.createReadStream('dataset.csv')
+    .pipe(csv())
+    .on('data', (row) => {
+        predictions[row[0]] = row[1];
+    })
+    .on('end', () => {
+        // Start the server after predictions are populated
+        startServer(predictions);
+    })
+    .on('error', (err) => {
         console.error('Error reading prediction file:', err);
         process.exit(1);
-    }
-    
-    const predictions = {};
-    data.forEach(row => {
-        predictions[row[0]] = row[1];
     });
 
-    // Start the server after predictions are populated
-    startServer(predictions);
-});
-
-// Function to start the server
 function startServer(predictions) {
     app.post('/', (req, res) => {
         if (!req.files) {

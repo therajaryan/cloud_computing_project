@@ -30,9 +30,6 @@ function startServer(predictions) {
 
         const filename = req.file.originalname.split('.')[0];
 
-        console.log("File -> ", req.file);
-        console.log("CSV ->", predictions);
-
         if (!predictions[filename]) {
             return res.status(404).send('Image not found in dataset!');
         }

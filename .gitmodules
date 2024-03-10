@@ -1,0 +1,3 @@
+[submodule "CSE546-Cloud-Computing"]
+	path = CSE546-Cloud-Computing
+	url = https://github.com/visa-lab/CSE546-Cloud-Computing.git

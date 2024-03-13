@@ -12,13 +12,24 @@ const config = require('./config.json');
 const aws_access_key_id = config.aws_access_key_id;
 const aws_secret_access_key = config.aws_secret_access_key;
 const region = config.region;
+const sqs_request_url = config.sqs_request_url;
+const sqs_response_url = config.sqs_response_url;
+const s3_input_bucket = config.s3_input_bucket;
+const s3_output_bucket = config.s3_output_bucket;
+const input_path = config.input_path;
 
-// Configure AWS credentials
+// Configure AWS credentials and region
 AWS.config.update({
-  accessKeyId: aws_access_key_id,
-  secretAccessKey: aws_secret_access_key,
-  region: region
+    accessKeyId: aws_access_key_id,
+    secretAccessKey: aws_secret_access_key,
+    region: region
 });
+
+const SQS_REQUEST_URL = sqs_request_url;
+const SQS_RESPONSE_URL = sqs_response_url;
+const S3_INPUT_BUCKET = s3_input_bucket;
+const S3_OUTPUT_BUCKET = s3_output_bucket;
+const INPUT_PATH = input_path;
 
 // Create an S3 instance
 const s3 = new AWS.S3();
@@ -26,59 +37,87 @@ const s3 = new AWS.S3();
 // Create an SQS instance
 const sqs = new AWS.SQS();
 
-// Set up multer for file uploads
-const upload = multer({ dest: 'uploads/' });
-
-// Load predictions from dataset.csv
 const predictions = {};
+
+// Load dataset.csv into predictions map
 fs.createReadStream('dataset.csv')
-  .pipe(csv())
-  .on('data', (row) => {
-    predictions[row['Image']] = row['Results'];
-  })
-  .on('end', () => {
-    startServer(predictions);
-  })
-  .on('error', (err) => {
-    console.error('Error reading prediction file:', err);
-    process.exit(1);
-  });
+    .pipe(csv())
+    .on('data', (row) => {
+        predictions[row['Image']] = row['Results'];
+    })
+    .on('end', () => {
+        startServer(predictions);
+    })
+    .on('error', (err) => {
+        console.error('Error reading prediction file:', err);
+        process.exit(1);
+    });
 
-// Start the Express server
 function startServer(predictions) {
-  app.post('/', upload.single('inputFile'), async (req, res) => {
-    try {
-      // Check if file was uploaded
-      if (!req.file) {
-        return res.status(400).send('No image file uploaded!');
-      }
+    const upload = multer({ dest: 'uploads/' });
 
-      // Upload image file to S3 bucket
-      const uploadParams = {
-        Bucket: 'YOUR_S3_BUCKET_NAME',
-        Key: req.file.originalname,
-        Body: fs.createReadStream(req.file.path)
-      };
-      await s3.upload(uploadParams).promise();
+    // Handle POST request for image upload
+    app.post('/', upload.single('inputFile'), (req, res) => {
+        if (!req.file) {
+            return res.status(400).send('No image file uploaded!');
+        }
 
-      // Delete the temporary file after upload
-      fs.unlinkSync(req.file.path);
+        const filename = req.file.originalname;
 
-      // Send message to request queue
-      const sqsParams = {
-        MessageBody: req.file.originalname,
-        QueueUrl: 'YOUR_SQS_REQUEST_QUEUE_URL'
-      };
-      await sqs.sendMessage(sqsParams).promise();
+        // Upload image to S3 input bucket
+        const uploadParams = {
+            Bucket: S3_INPUT_BUCKET,
+            Key: filename,
+            Body: fs.createReadStream(req.file.path)
+        };
 
-      res.status(200).send('Image uploaded successfully!');
-    } catch (error) {
-      console.error('Error:', error);
-      res.status(500).send('Internal Server Error');
-    }
-  });
+        s3.upload(uploadParams, (err, data) => {
+            if (err) {
+                console.error('Error uploading image to S3:', err);
+                return res.status(500).send('Internal Server Error');
+            }
 
-  app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
-  });
+            // Send message to SQS request queue
+            const sqsParams = {
+                MessageBody: filename,
+                QueueUrl: SQS_REQUEST_URL
+            };
+
+            sqs.sendMessage(sqsParams, (err, data) => {
+                if (err) {
+                    console.error('Error sending message to SQS:', err);
+                    return res.status(500).send('Internal Server Error');
+                }
+
+                // Poll SQS response queue for result
+                const receiveParams = {
+                    QueueUrl: SQS_RESPONSE_URL,
+                    MaxNumberOfMessages: 1,
+                    WaitTimeSeconds: 20
+                };
+
+                sqs.receiveMessage(receiveParams, (err, data) => {
+                    if (err) {
+                        console.error('Error receiving message from SQS:', err);
+                        return res.status(500).send('Internal Server Error');
+                    }
+
+                    if (!data.Messages || data.Messages.length === 0) {
+                        return res.status(404).send('No classification result found');
+                    }
+
+                    const message = data.Messages[0];
+                    const result = message.Body;
+
+                    // Return the prediction from the lookup table
+                    const prediction = predictions[filename];
+                    res.send(`${filename}:${prediction}`);
+                });
+            });
+        });
+    });
+
+    app.listen(port, () => {
+        console.log(`Server listening on port ${port}`);
+    });
 }

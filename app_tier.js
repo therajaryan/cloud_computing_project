@@ -84,7 +84,7 @@ const downloadImageFromS3 = async (imageName) => {
 // Function to classify image
 const classifyImage = async (pathToFile, imageName) => {
   try {
-    const classifierPath = '/home/ubuntu/model/face_recognition.py';
+    const classifierPath = '/model/face_recognition.py';
     const modelPrediction = execSync(`python3 ${classifierPath} ${pathToFile}`).toString();
     const result = modelPrediction.trim();
     console.log(`Classification results: ${result}`);

@@ -85,11 +85,12 @@ const downloadImageFromS3 = async (imageName) => {
 const classifyImage = async (pathToFile, imageName) => {
   try {
     const classifierPath = '/home/ubuntu/cloud_computing_project/model/face_recognition.py';
+    const imageNameWithoutExtension = imageName.split('.')[0]; // Remove the file extension
     const modelPrediction = execSync(`python3 ${classifierPath} ${pathToFile}`).toString();
     const result = modelPrediction.trim();
     console.log(`Classification results: ${result}`);
-    await saveResultInS3Output(imageName, result);
-    await sendResultToSqsResponse(imageName, result);
+    await saveResultInS3Output(imageNameWithoutExtension, result);
+    await sendResultToSqsResponse(imageNameWithoutExtension, result);
 
   } catch (error) {
     console.error(`An error occurred while classifying image: ${error}`);

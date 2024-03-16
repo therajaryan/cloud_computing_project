@@ -63,6 +63,7 @@ function startServer(predictions) {
         }
 
         const filename = req.file.originalname;
+        const filenameWithoutExtension = filename.split('.')[0]; // Remove the file extension
 
         // Upload image to S3 input bucket
         const uploadParams = {
@@ -79,7 +80,7 @@ function startServer(predictions) {
 
             // Send message to SQS request queue
             const sqsParams = {
-                MessageBody: filename,
+                MessageBody: filenameWithoutExtension,
                 QueueUrl: SQS_REQUEST_URL
             };
 
@@ -110,8 +111,8 @@ function startServer(predictions) {
                     const result = message.Body;
 
                     // Return the prediction from the lookup table
-                    const prediction = predictions[filename];
-                    res.send(`${filename}:${prediction}`);
+                    const prediction = predictions[filenameWithoutExtension];
+                    res.send(`${filenameWithoutExtension}:${prediction}`);
                 });
             });
         });

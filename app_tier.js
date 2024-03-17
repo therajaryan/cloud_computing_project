@@ -40,7 +40,11 @@ const readRequests = async () => {
       VisibilityTimeout: 30
     }).promise();
 
-    if (!sqsResponse.Messages) return;
+    if (!sqsResponse.Messages) {
+      // If no messages, re-invoke readRequests after a delay
+      setTimeout(readRequests, 5000); // Wait 5 seconds before re-invoking
+      return;
+    }
 
     const sqsMessage = sqsResponse.Messages[0];
     console.log("sqsResponse -> ", sqsResponse);
@@ -56,6 +60,9 @@ const readRequests = async () => {
       QueueUrl: SQS_REQUEST_URL,
       ReceiptHandle: receiptHandle
     }).promise();
+
+    // After processing current message, re-invoke readRequests after a delay
+    setTimeout(readRequests, 0); // Immediately re-invoke
 
   } catch (error) {
     console.error(`An error occurred while processing requests: ${error}`);
@@ -139,5 +146,5 @@ const sendResultToSqsResponse = async (key, value) => {
   }
 };
 
-// Continuous loop to read requests every 5 seconds
-setInterval(readRequests, 5000);
+// Start reading requests
+readRequests();

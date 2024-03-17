@@ -91,7 +91,8 @@ const classifyImage = async (pathToFile, imageName) => {
     const modelPrediction = execSync(`python3 ${classifierPath} ${pathToFile}`).toString();
     const result = modelPrediction.trim();
     console.log(`Classification results: ${result}`);
-    await saveResultInS3Output(imageName, result);
+    const respo = await saveResultInS3Output(imageName, result);
+    console.log("saveResultInS3Output response -> ", respo);
     await sendResultToSqsResponse(imageName, result);
 
   } catch (error) {

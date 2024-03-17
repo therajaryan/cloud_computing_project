@@ -32,6 +32,7 @@ const INPUT_PATH = input_path;
 // Function to read requests from SQS and process them
 const readRequests = async () => {
   try {
+    console.log("1");
     const sqsResponse = await sqs.receiveMessage({
       QueueUrl: SQS_REQUEST_URL,
       MaxNumberOfMessages: 1,
@@ -64,6 +65,7 @@ const readRequests = async () => {
 // Function to download image from S3
 const downloadImageFromS3 = async (imageName) => {
   try {
+    console.log("2");
     if (!fs.existsSync(INPUT_PATH)) {
       fs.mkdirSync(INPUT_PATH);
     }
@@ -86,6 +88,7 @@ const downloadImageFromS3 = async (imageName) => {
 // Function to classify image
 const classifyImage = async (pathToFile, imageName) => {
   try {
+    console.log("3");
     const classifierPath = '/home/ubuntu/cloud_computing_project/model/face_recognition.py';
     const imageNameWithoutExtension = imageName.split('.')[0]; // Remove the file extension
     const modelPrediction = execSync(`python3 ${classifierPath} ${pathToFile}`).toString();
@@ -103,7 +106,9 @@ const classifyImage = async (pathToFile, imageName) => {
 // Function to save result in S3 output
 const saveResultInS3Output = async (key, value) => {
   try {
+    console.log("4");
     const result = `(${key},${value})`;
+    console.log("result ->, result);
     await s3.putObject({
       Bucket: S3_OUTPUT_BUCKET,
       Key: key.split('.')[0],
@@ -118,6 +123,7 @@ const saveResultInS3Output = async (key, value) => {
 // Function to send result to SQS response
 const sendResultToSqsResponse = async (key, value) => {
   try {
+    console.log("5");
     const sqsMessage = `${key},${value}`;
     const sqsResponse = await sqs.sendMessage({
       QueueUrl: SQS_RESPONSE_URL,

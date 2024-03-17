@@ -76,9 +76,11 @@ const downloadImageFromS3 = async (imageName) => {
       Key: imageName
     };
     const data = await s3.getObject(s3Params).promise();
+    console.log("S3.getobject Data ->", data);
     fs.writeFileSync(INPUT_PATH + imageName, data.Body);
 
-    await classifyImage(INPUT_PATH + imageName, imageName);
+    const response = await classifyImage(INPUT_PATH + imageName, imageName);
+    console.log("Classify Image response ->", response);
 
   } catch (error) {
     console.error(`An error occurred while downloading image: ${error}`);

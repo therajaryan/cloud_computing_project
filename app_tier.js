@@ -75,6 +75,7 @@ const downloadImageFromS3 = async (imageName) => {
       Bucket: S3_INPUT_BUCKET,
       Key: imageName
     };
+    console.log("s3Params", s3Params);
     const data = await s3.getObject(s3Params).promise();
     console.log("S3.getobject Data ->", data);
     fs.writeFileSync(INPUT_PATH + imageName, data.Body);

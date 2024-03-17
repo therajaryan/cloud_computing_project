@@ -5,7 +5,7 @@ const multer = require('multer');
 const AWS = require('aws-sdk');
 
 const app = express();
-const port = 8080;
+const port = 8000;
 
 const config = require('./config.json');
 

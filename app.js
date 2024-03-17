@@ -68,7 +68,7 @@ function startServer(predictions) {
         // Upload image to S3 input bucket
         const uploadParams = {
             Bucket: S3_INPUT_BUCKET,
-            Key: filename,
+            Key: filenameWithoutExtension,
             Body: fs.createReadStream(req.file.path)
         };
 

@@ -42,7 +42,7 @@ const readRequests = async () => {
     if (!sqsResponse.Messages) return;
 
     const sqsMessage = sqsResponse.Messages[0];
-    console.log("Messages -> ", Messages);
+    console.log("sqsResponse -> ", sqsResponse);
     console.log("SQS Msg -> ", sqsMessage);
     const receiptHandle = sqsMessage.ReceiptHandle;
     console.log(`Message Received: ${sqsMessage.Body}`);

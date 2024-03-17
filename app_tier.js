@@ -90,7 +90,7 @@ const classifyImage = async (pathToFile, imageName) => {
     const result = modelPrediction.trim();
     console.log(`Classification results: ${result}`);
     await saveResultInS3Output(imageNameWithoutExtension, result);
-    await sendResultToSqsResponse(imageNameWithoutExtension, result);
+    await sendResultToSqsResponse(imageName, result);
 
   } catch (error) {
     console.error(`An error occurred while classifying image: ${error}`);

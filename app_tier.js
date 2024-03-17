@@ -108,7 +108,7 @@ const saveResultInS3Output = async (key, value) => {
   try {
     console.log("4");
     const result = `(${key},${value})`;
-    console.log("result ->, result);
+    console.log("result ->", result);
     await s3.putObject({
       Bucket: S3_OUTPUT_BUCKET,
       Key: key.split('.')[0],

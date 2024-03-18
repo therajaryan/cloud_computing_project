@@ -161,7 +161,7 @@ async function launchNewInstance() {
         MinCount: 1,
         MaxCount: 1,
         KeyName: 'my_key_pair.pem', 
-        SecurityGroupIds: 'sg-0c159ba62ee2666e9',
+        SecurityGroupIds: ['sg-0c159ba62ee2666e9'],
 		UserData: Buffer.from(START_SCRIPT).toString('base64')
     };
 

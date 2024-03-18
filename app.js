@@ -3,7 +3,6 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const multer = require('multer');
 const AWS = require('aws-sdk');
-const { Consumer } = require('sqs-consumer');
 
 const app = express();
 const port = 8000;
@@ -23,7 +22,6 @@ const START_SCRIPT = `#!/bin/bash
 cd /home/ubuntu/cloud_computing_project/
 sudo -u node app_tier.js`;
 
-const pendingRequests = new Map();
 const ec2InstanceSet = new Set();
 
 // Configure AWS credentials and region
@@ -105,7 +103,7 @@ function startServer(predictions) {
                     MaxNumberOfMessages: 1,
                     WaitTimeSeconds: 20
                 };
-                pendingRequests.set(correlationId, res);
+
                 if (instanceCount == 0)
                 {
                     console.log('post API, no ec2Instance found');
@@ -138,7 +136,7 @@ function startServer(predictions) {
         console.log(`Server listening on port ${port}`);
 
         // Start autoscaling task
-        // setInterval(autoScale, 10000);
+        setInterval(autoScale, 10000);
     });
 }
 
@@ -190,14 +188,14 @@ async function launchNewInstance() {
     }
 }
 
-// async function getQueueLength(queueUrl) {
-//     const command = new GetQueueAttributesCommand({
-//         QueueUrl: queueUrl,
-//         AttributeNames: ['ApproximateNumberOfMessages'],
-//     });
-//     const response = await sqsClient.send(command);
-//     return parseInt(response.Attributes.ApproximateNumberOfMessages, 10);
-// }
+async function getQueueLength(queueUrl) {
+    const command = new GetQueueAttributesCommand({
+        QueueUrl: queueUrl,
+        AttributeNames: ['ApproximateNumberOfMessages'],
+    });
+    const response = await sqsClient.send(command);
+    return parseInt(response.Attributes.ApproximateNumberOfMessages, 10);
+}
 
 async function terminateInstance(instanceId) {
     const params = {
@@ -215,23 +213,23 @@ async function terminateInstance(instanceId) {
 }
 
 async function autoScale() {
-    const pendingSize = pendingRequests.size;
+    const queueLength = await getQueueLength(SQS_REQUEST_URL);
+    console.log('Queue length:', queueLength);
 	console.log("checking scaling");
 	console.log("instanceCount = ", instanceCount);
-	console.log("pendingSize = ", pendingSize);
-	if (instanceCount == 0 && pendingSize > 0)
+	if (instanceCount == 0 && queueLength > 0)
 	{
 		console.log("No instance detected, launching right away");
 		await launchNewInstance();
 	}
 	
     // Scale Out: If pending requests exceed the threshold, launch a new instance.
-    else if (pendingSize / instanceCount >= SCALE_OUT_THRESHOLD && instanceCount < MAX_INSTANCES) {
+    else if (queueLength / instanceCount >= SCALE_OUT_THRESHOLD && instanceCount < MAX_INSTANCES) {
         console.log("Scaling out due to high load...");
         await launchNewInstance();
     }
     // Scale In: If the load decreases significantly, terminate an instance.
-    else if (pendingSize <= SCALE_IN_THRESHOLD && instanceCount > MIN_INSTANCES) {
+    else if (queueLength <= SCALE_IN_THRESHOLD && instanceCount > MIN_INSTANCES) {
         console.log("Scaling in due to low load...");
 		const iterator = ec2InstanceSet.values();
 		const first = iterator.next().value;
@@ -239,37 +237,6 @@ async function autoScale() {
     }
 }
 
-// SQS Consumer to process response messages
-const responseConsumer = Consumer.create({
-    queueUrl: URL_RESPONSE_SQS,
-    handleMessage: async (message) => {
-        console.log("Received response message:", message.Body);
-        const response = JSON.parse(message.Body);
-
-        // Extract correlationId from the response
-        const { correlationId, result } = response;
-
-        // Check if the correlationId exists in the pendingRequests map
-        if (pendingRequests.has(correlationId)) {
-            const clientRes = pendingRequests.get(correlationId);
-            clientRes.send({ message: 'File processing completed.', result });
-            pendingRequests.delete(correlationId); // Remove the request from the map
-        } else {
-            console.log("No matching request found for correlationId:", correlationId);
-        }
-    },
-    sqs: sqsClient,
-});
-
-responseConsumer.on('error', (err) => {
-    console.error('Error in response consumer:', err.message);
-});
-
-responseConsumer.on('processing_error', (err) => {
-    console.error('Processing error in response consumer:', err.message);
-});
-
-responseConsumer.start();
 
 
 // async function autoScale() {
@@ -327,3 +294,4 @@ responseConsumer.start();
 
 //     await ec2.terminateInstances(params).promise();
 // }
+

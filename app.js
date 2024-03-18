@@ -3,6 +3,10 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const multer = require('multer');
 const AWS = require('aws-sdk');
+const { EC2Client, RunInstancesCommand, TerminateInstancesCommand } = require("@aws-sdk/client-ec2");
+const { SQSClient, SendMessageCommand, GetQueueAttributesCommand } = require("@aws-sdk/client-sqs");
+const sqsClient = new SQSClient({ region: "us-east-1" });
+const ec2Client = new EC2Client({ region: "us-east-1" });
 
 const app = express();
 const port = 8000;

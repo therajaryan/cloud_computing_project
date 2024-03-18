@@ -17,6 +17,13 @@ const sqs_response_url = config.sqs_response_url;
 const s3_input_bucket = config.s3_input_bucket;
 const s3_output_bucket = config.s3_output_bucket;
 const input_path = config.input_path;
+const app_tier_ami_id = config.app_tier_ami_id;
+const START_SCRIPT = `#!/bin/bash
+cd /home/ubuntu/cloud_computing_project/
+sudo -u node app_tier.js`;
+
+const pendingRequests = new Map();
+const ec2InstanceSet = new Set();
 
 // Configure AWS credentials and region
 AWS.config.update({
@@ -30,6 +37,7 @@ const SQS_RESPONSE_URL = sqs_response_url;
 const S3_INPUT_BUCKET = s3_input_bucket;
 const S3_OUTPUT_BUCKET = s3_output_bucket;
 const INPUT_PATH = input_path;
+const APP_TIER_AMI_ID = app_tier_ami_id;
 
 // Create an S3 instance
 const s3 = new AWS.S3();
@@ -72,7 +80,7 @@ function startServer(predictions) {
             Body: fs.createReadStream(req.file.path)
         };
 
-        s3.upload(uploadParams, (err, data) => {
+        s3.upload(uploadParams, async (err, data) => {
             if (err) {
                 console.error('Error uploading image to S3:', err);
                 return res.status(500).send('Internal Server Error');
@@ -84,7 +92,7 @@ function startServer(predictions) {
                 QueueUrl: SQS_REQUEST_URL
             };
 
-            sqs.sendMessage(sqsParams, (err, data) => {
+            sqs.sendMessage(sqsParams, async (err, data) => {
                 if (err) {
                     console.error('Error sending message to SQS:', err);
                     return res.status(500).send('Internal Server Error');
@@ -96,8 +104,15 @@ function startServer(predictions) {
                     MaxNumberOfMessages: 1,
                     WaitTimeSeconds: 20
                 };
+                pendingRequests.set(correlationId, res);
+                if (instanceCount == 0)
+                {
+                    console.log('post API, no ec2Instance found');
+                    await autoScale();
+                }
+                lastActivityTime = Date.now(); // Update last activity time
 
-                sqs.receiveMessage(receiveParams, (err, data) => {
+                sqs.receiveMessage(receiveParams, async (err, data) => {
                     if (err) {
                         console.error('Error receiving message from SQS:', err);
                         return res.status(500).send('Internal Server Error');
@@ -118,7 +133,196 @@ function startServer(predictions) {
         });
     });
 
-    app.listen(port, () => {
+    app.listen(port, async () => {
         console.log(`Server listening on port ${port}`);
+
+        // Start autoscaling task
+        // setInterval(autoScale, 10000);
     });
 }
+
+const { v4: uuidv4 } = require('uuid'); // Importing UUID library
+
+async function launchNewInstance() {
+    const params = {
+        ImageId: APP_TIER_AMI_ID,
+        InstanceType: "t2.micro",
+        MinCount: 1,
+        MaxCount: 1,
+        KeyName: 'my_key_pair.pem', 
+        SecurityGroupIds: ['sgr-0c2267eeb5781a7f4', 'sgr-052e7ccc291056ca1'],
+		UserData: Buffer.from(START_SCRIPT).toString('base64')
+    };
+
+    try {
+		if (instanceCount >= MAX_INSTANCES)
+		{
+			console.log('max instances reached, increase total limit')
+			return
+		}
+		instanceCount++;
+        const instanceName = `app-tier-instance-${uuidv4()}`;
+
+        // Add instance name to the params
+        params.TagSpecifications = [
+            {
+                ResourceType: "instance",
+                Tags: [
+                    {
+                        Key: "Name",
+                        Value: instanceName
+                    },
+                    // Add other tags if needed
+                ]
+            }
+        ];
+
+        // Launch the instance with the provided params
+        const data = await ec2Client.send(new RunInstancesCommand(params));
+        console.log("Successfully launched instance", data.Instances[0].InstanceId);
+		ec2InstanceSet.add(data.Instances[0].InstanceId);
+
+        // Additional setup or tagging can be done here
+    } catch (error) {
+        console.error("Failed to launch instance:", error);
+		instanceCount--;
+    }
+}
+
+// async function getQueueLength(queueUrl) {
+//     const command = new GetQueueAttributesCommand({
+//         QueueUrl: queueUrl,
+//         AttributeNames: ['ApproximateNumberOfMessages'],
+//     });
+//     const response = await sqsClient.send(command);
+//     return parseInt(response.Attributes.ApproximateNumberOfMessages, 10);
+// }
+
+async function terminateInstance(instanceId) {
+    const params = {
+        InstanceIds: [instanceId],
+    };
+    try {
+		instanceCount--;
+        await ec2Client.send(new TerminateInstancesCommand(params));
+        console.log(`Successfully requested termination of instance ${instanceId}`);
+		ec2InstanceSet.delete(instanceId);
+    } catch (error) {
+		instanceCount++;
+        console.error("Failed to terminate instance:", error);
+    }
+}
+
+async function autoScale() {
+    const pendingSize = pendingRequests.size;
+	console.log("checking scaling");
+	console.log("instanceCount = ", instanceCount);
+	console.log("pendingSize = ", pendingSize);
+	if (instanceCount == 0 && pendingSize > 0)
+	{
+		console.log("No instance detected, launching right away");
+		await launchNewInstance();
+	}
+	
+    // Scale Out: If pending requests exceed the threshold, launch a new instance.
+    else if (pendingSize / instanceCount >= SCALE_OUT_THRESHOLD && instanceCount < MAX_INSTANCES) {
+        console.log("Scaling out due to high load...");
+        await launchNewInstance();
+    }
+    // Scale In: If the load decreases significantly, terminate an instance.
+    else if (pendingSize <= SCALE_IN_THRESHOLD && instanceCount > MIN_INSTANCES) {
+        console.log("Scaling in due to low load...");
+		const iterator = ec2InstanceSet.values();
+		const first = iterator.next().value;
+        await terminateInstance(first);
+    }
+}
+
+// SQS Consumer to process response messages
+const responseConsumer = Consumer.create({
+    queueUrl: URL_RESPONSE_SQS,
+    handleMessage: async (message) => {
+        console.log("Received response message:", message.Body);
+        const response = JSON.parse(message.Body);
+
+        // Extract correlationId from the response
+        const { correlationId, result } = response;
+
+        // Check if the correlationId exists in the pendingRequests map
+        if (pendingRequests.has(correlationId)) {
+            const clientRes = pendingRequests.get(correlationId);
+            clientRes.send({ message: 'File processing completed.', result });
+            pendingRequests.delete(correlationId); // Remove the request from the map
+        } else {
+            console.log("No matching request found for correlationId:", correlationId);
+        }
+    },
+    sqs: sqsClient,
+});
+
+responseConsumer.on('error', (err) => {
+    console.error('Error in response consumer:', err.message);
+});
+
+responseConsumer.on('processing_error', (err) => {
+    console.error('Processing error in response consumer:', err.message);
+});
+
+responseConsumer.start();
+
+
+// async function autoScale() {
+//     try {
+//         const queueLength = await getQueueLength(SQS_REQUEST_URL);
+//         console.log('Queue length:', queueLength);
+
+//         if (queueLength > 10) {
+//             await launchNewInstance();
+//             console.log('Launched new instance');
+//         } else if (queueLength < 5) {
+//             // Terminate instance if it's safe to scale in
+//             const instanceId = await getOldestInstance();
+//             if (instanceId) {
+//                 await terminateInstance(instanceId);
+//                 console.log('Terminated instance:', instanceId);
+//             }
+//         }
+//     } catch (error) {
+//         console.error('Error in autoscaling:', error);
+//     }
+// }
+
+// async function getQueueLength(queueUrl) {
+//     const params = {
+//         QueueUrl: queueUrl,
+//         AttributeNames: ['ApproximateNumberOfMessages']
+//     };
+
+//     const data = await sqs.getQueueAttributes(params).promise();
+//     return parseInt(data.Attributes.ApproximateNumberOfMessages, 10);
+// }
+
+
+
+
+// async function getOldestInstance() {
+//     const params = {
+//         Filters: [
+//             { Name: 'instance-state-name', Values: ['running'] },
+//             { Name: 'tag:Role', Values: ['AppTier'] }
+//         ]
+//     };
+
+//     const data = await ec2.describeInstances(params).promise();
+//     const instances = data.Reservations.flatMap(reservation => reservation.Instances);
+//     const oldestInstance = instances.sort((a, b) => new Date(a.LaunchTime) - new Date(b.LaunchTime))[0];
+//     return oldestInstance.InstanceId;
+// }
+
+// async function terminateInstance(instanceId) {
+//     const params = {
+//         InstanceIds: [instanceId]
+//     };
+
+//     await ec2.terminateInstances(params).promise();
+// }

@@ -75,7 +75,7 @@ const ec2InstanceSet = new Set();
 
 
 function startServer(predictions) {
-    const upload = multer({ dest: 'uploads/' });
+        const upload = multer({ dest: 'uploads/' });
 
     // Handle POST request for image upload
     app.post('/', upload.single('inputFile'), (req, res) => {
@@ -118,43 +118,56 @@ function startServer(predictions) {
                     WaitTimeSeconds: 20
                 };
 
-                if (instanceCount == 0)
-                {
+                if (instanceCount == 0) {
                     console.log('post API, no ec2Instance found');
                     await autoScale();
                 }
                 lastActivityTime = Date.now(); // Update last activity time
 
-                sqs.receiveMessage(receiveParams, async (err, data) => {
-                    if (err) {
-                        console.error('Error receiving message from SQS:', err);
-                        return res.status(500).send('Internal Server Error');
-                    }
+                while (true) {
+                    sqs.receiveMessage(receiveParams, async (err, data) => {
+                        if (err) {
+                            console.error('Error receiving message from SQS:', err);
+                            return res.status(500).send('Internal Server Error');
+                        }
 
-                    if (!data.Messages || data.Messages.length === 0) {
-                        return res.status(404).send('No classification result found');
-                    }
+                        if (!data.Messages || data.Messages.length === 0) {
+                            return res.status(404).send('No classification result found');
+                        }
 
-                    const message = data.Messages[0];
-                    const result = message.Body;
-			const deleteMessageParams = {
-		            QueueUrl: SQS_RESPONSE_URL,
-		            ReceiptHandle: message.ReceiptHandle
-		          };
-		sqs.deleteMessage(deleteMessageParams, (err, data) => {
-		              if (err) {
-		                console.error('Error deleting message:', err);
-		              } else {
-		                console.log('Message deleted successfully:', message.MessageId);
-		              }
-		          });
-                    // Return the prediction from the lookup table
-                    const prediction = predictions[filenameWithoutExtension];
-                    res.send(`${filenameWithoutExtension}:${prediction}`);
-                });
+                        const message = data.Messages[0];
+                        const result = message.Body;
+                        recognitionResult = JSON.parse(message.Body).result;
+                        returnedFileName = JSON.parse(message.Body).fileName;
+
+                        if (returnedFileName == filenameWithoutExtension) {
+                            await s3.putObject({
+                                Bucket: S3_OUTPUT_BUCKET,
+                                Key: filenameWithoutExtension,
+                                Body: recognitionResult
+                            }).promise();
+
+                            const deleteMessageParams = {
+                                QueueUrl: SQS_RESPONSE_URL,
+                                ReceiptHandle: message.ReceiptHandle
+                            };
+                            sqs.deleteMessage(deleteMessageParams, (err, data) => {
+                                if (err) {
+                                    console.error('Error deleting message:', err);
+                                } else {
+                                    console.log('Message deleted successfully:', message.MessageId);
+                                }
+                            });
+                            // Return the prediction from the lookup table
+                            const prediction = predictions[filenameWithoutExtension];
+                            res.send(`${filenameWithoutExtension}:${prediction}`);
+                        }
+                    });
+                }
             });
         });
     });
+
 
     app.listen(port, async () => {
         console.log(`Server listening on port ${port}`);

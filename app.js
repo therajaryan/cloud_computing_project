@@ -19,7 +19,7 @@ const s3_output_bucket = config.s3_output_bucket;
 const input_path = config.input_path;
 const START_SCRIPT = `#!/bin/bash
 cd /home/ubuntu/cloud_computing_project/
-sudo -u node app_tier.js`;
+sudo -u ubuntu node app_tier.js`;
 
 // Configure AWS credentials and region
 AWS.config.update({

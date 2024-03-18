@@ -71,6 +71,8 @@ fs.createReadStream('dataset.csv')
         process.exit(1);
     });
 let instanceCount = 0;
+const ec2InstanceSet = new Set();
+
 
 function startServer(predictions) {
     const upload = multer({ dest: 'uploads/' });

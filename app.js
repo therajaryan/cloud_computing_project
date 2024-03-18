@@ -3,10 +3,6 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const multer = require('multer');
 const AWS = require('aws-sdk');
-const { EC2Client, RunInstancesCommand, TerminateInstancesCommand } = require("@aws-sdk/client-ec2");
-const { SQSClient, SendMessageCommand, GetQueueAttributesCommand } = require("@aws-sdk/client-sqs");
-const sqsClient = new SQSClient({ region: "us-east-1" });
-const ec2Client = new EC2Client({ region: "us-east-1" });
 
 const app = express();
 const port = 8000;
@@ -25,8 +21,6 @@ const app_tier_ami_id = config.app_tier_ami_id;
 const START_SCRIPT = `#!/bin/bash
 cd /home/ubuntu/cloud_computing_project/
 sudo -u node app_tier.js`;
-
-const ec2InstanceSet = new Set();
 
 // Configure AWS credentials and region
 AWS.config.update({
@@ -59,6 +53,8 @@ const s3 = new AWS.S3();
 
 // Create an SQS instance
 const sqs = new AWS.SQS();
+
+const ec2 = new AWS.EC2();
 
 const predictions = {};
 
@@ -194,7 +190,7 @@ async function launchNewInstance() {
         ];
 
         // Launch the instance with the provided params
-        const data = await ec2Client.send(new RunInstancesCommand(params));
+        const data = await ec2.runInstances(params).promise();
         console.log("Successfully launched instance", data.Instances[0].InstanceId);
 		ec2InstanceSet.add(data.Instances[0].InstanceId);
 

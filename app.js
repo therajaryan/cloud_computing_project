@@ -75,6 +75,42 @@ const ec2InstanceSet = new Set();
 
 
 function startServer(predictions) {
+	async function handleMessage(receiveParams, res, filenameWithoutExtension) {
+    try {
+        const receiveResult = await sqs.receiveMessage(receiveParams).promise();
+        if (!receiveResult.Messages || receiveResult.Messages.length === 0) {
+            console.log('No messages found in SQS queue');
+            return res.status(404).send('No classification result found');
+        }
+
+        const message = receiveResult.Messages[0];
+        const result = message.Body;
+        const recognitionResult = JSON.parse(message.Body).result;
+        const returnedFileName = JSON.parse(message.Body).fileName;
+
+        if (returnedFileName == filenameWithoutExtension) {
+            await s3.putObject({
+                Bucket: S3_OUTPUT_BUCKET,
+                Key: filenameWithoutExtension,
+                Body: recognitionResult
+            }).promise();
+
+            await sqs.deleteMessage({
+                QueueUrl: SQS_RESPONSE_URL,
+                ReceiptHandle: message.ReceiptHandle
+            }).promise();
+
+            const prediction = predictions[filenameWithoutExtension];
+            res.send(`${filenameWithoutExtension}:${prediction}`);
+        } else {
+            // Continue polling recursively until the correct message is found
+            await handleMessage(receiveParams, res, filenameWithoutExtension);
+        }
+    } catch (error) {
+        console.error('Error receiving message from SQS:', error);
+        res.status(500).send('Internal Server Error');
+    }
+}
         const upload = multer({ dest: 'uploads/' });
 
     // Handle POST request for image upload
@@ -123,48 +159,13 @@ function startServer(predictions) {
                     await autoScale();
                 }
                 lastActivityTime = Date.now(); // Update last activity time
-                let messageFound = false;
-                while (!messageFound) {
-                    sqs.receiveMessage(receiveParams, async (err, data) => {
-                        if (err) {
-                            console.error('Error receiving message from SQS:', err);
-                            return res.status(500).send('Internal Server Error');
-                        }
-
-                        if (!data.Messages || data.Messages.length === 0) {
-                            return res.status(404).send('No classification result found');
-                        }
-
-                        const message = data.Messages[0];
-                        const result = message.Body;
-                        recognitionResult = JSON.parse(message.Body).result;
-                        returnedFileName = JSON.parse(message.Body).fileName;
-
-                        if (returnedFileName == filenameWithoutExtension) {
-                            await s3.putObject({
-                                Bucket: S3_OUTPUT_BUCKET,
-                                Key: filenameWithoutExtension,
-                                Body: recognitionResult
-                            }).promise();
-
-                            const deleteMessageParams = {
-                                QueueUrl: SQS_RESPONSE_URL,
-                                ReceiptHandle: message.ReceiptHandle
-                            };
-                            sqs.deleteMessage(deleteMessageParams, (err, data) => {
-                                if (err) {
-                                    console.error('Error deleting message:', err);
-                                } else {
-                                    console.log('Message deleted successfully:', message.MessageId);
-                                }
-                            });
-                            messageFound = true;
-                            // Return the prediction from the lookup table
-                            const prediction = predictions[filenameWithoutExtension];
-                            res.send(`${filenameWithoutExtension}:${prediction}`);
-                        }
-                    });
-                }
+		    try {
+		            // Start polling for messages
+		            await handleMessage(receiveParams, res, filenameWithoutExtension);
+		        } catch (error) {
+		            console.error('Error handling message:', error);
+		            res.status(500).send('Internal Server Error');
+		        }
             });
         });
     });

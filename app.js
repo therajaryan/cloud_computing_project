@@ -188,13 +188,15 @@ async function launchNewInstance() {
     }
 }
 
+
 async function getQueueLength(queueUrl) {
-    const command = new GetQueueAttributesCommand({
+    const params = {
         QueueUrl: queueUrl,
-        AttributeNames: ['ApproximateNumberOfMessages'],
-    });
-    const response = await sqsClient.send(command);
-    return parseInt(response.Attributes.ApproximateNumberOfMessages, 10);
+        AttributeNames: ['ApproximateNumberOfMessages']
+    };
+
+    const data = await sqs.getQueueAttributes(params).promise();
+    return parseInt(data.Attributes.ApproximateNumberOfMessages, 10);
 }
 
 async function terminateInstance(instanceId) {
@@ -294,4 +296,3 @@ async function autoScale() {
 
 //     await ec2.terminateInstances(params).promise();
 // }
-

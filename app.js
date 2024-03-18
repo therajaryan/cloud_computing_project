@@ -75,44 +75,43 @@ const ec2InstanceSet = new Set();
 
 
 function startServer(predictions) {
-	async function handleMessage(receiveParams, res, filenameWithoutExtension) {
-    try {
-        const receiveResult = await sqs.receiveMessage(receiveParams).promise();
-        if (!receiveResult.Messages || receiveResult.Messages.length === 0) {
-            console.log('No messages found in SQS queue');
-            return res.status(404).send('No classification result found');
+    const upload = multer({ dest: 'uploads/' });
+    async function handleMessage(receiveParams, res, filenameWithoutExtension) {
+        try {
+            const receiveResult = await sqs.receiveMessage(receiveParams).promise();
+            if (!receiveResult.Messages || receiveResult.Messages.length === 0) {
+                console.log('No messages found in SQS queue');
+                return res.status(404).send('No classification result found');
+            }
+
+            const message = receiveResult.Messages[0];
+            const result = message.Body;
+            const recognitionResult = JSON.parse(message.Body).result;
+            const returnedFileName = JSON.parse(message.Body).fileName;
+
+            if (returnedFileName == filenameWithoutExtension) {
+                await s3.putObject({
+                    Bucket: S3_OUTPUT_BUCKET,
+                    Key: filenameWithoutExtension,
+                    Body: recognitionResult
+                }).promise();
+
+                await sqs.deleteMessage({
+                    QueueUrl: SQS_RESPONSE_URL,
+                    ReceiptHandle: message.ReceiptHandle
+                }).promise();
+
+                const prediction = predictions[filenameWithoutExtension];
+                res.send(`${filenameWithoutExtension}:${prediction}`);
+            } else {
+                // Continue polling recursively until the correct message is found
+                await handleMessage(receiveParams, res, filenameWithoutExtension);
+            }
+        } catch (error) {
+            console.error('Error receiving message from SQS:', error);
+            res.status(500).send('Internal Server Error');
         }
-
-        const message = receiveResult.Messages[0];
-        const result = message.Body;
-        const recognitionResult = JSON.parse(message.Body).result;
-        const returnedFileName = JSON.parse(message.Body).fileName;
-
-        if (returnedFileName == filenameWithoutExtension) {
-            await s3.putObject({
-                Bucket: S3_OUTPUT_BUCKET,
-                Key: filenameWithoutExtension,
-                Body: recognitionResult
-            }).promise();
-
-            await sqs.deleteMessage({
-                QueueUrl: SQS_RESPONSE_URL,
-                ReceiptHandle: message.ReceiptHandle
-            }).promise();
-
-            const prediction = predictions[filenameWithoutExtension];
-            res.send(`${filenameWithoutExtension}:${prediction}`);
-        } else {
-            // Continue polling recursively until the correct message is found
-            await handleMessage(receiveParams, res, filenameWithoutExtension);
-        }
-    } catch (error) {
-        console.error('Error receiving message from SQS:', error);
-        res.status(500).send('Internal Server Error');
     }
-}
-        const upload = multer({ dest: 'uploads/' });
-
     // Handle POST request for image upload
     app.post('/', upload.single('inputFile'), (req, res) => {
         if (!req.file) {

@@ -17,7 +17,6 @@ const sqs_response_url = config.sqs_response_url;
 const s3_input_bucket = config.s3_input_bucket;
 const s3_output_bucket = config.s3_output_bucket;
 const input_path = config.input_path;
-const app_tier_ami_id = config.app_tier_ami_id;
 const START_SCRIPT = `#!/bin/bash
 cd /home/ubuntu/cloud_computing_project/
 sudo -u node app_tier.js`;
@@ -34,7 +33,7 @@ const SQS_RESPONSE_URL = sqs_response_url;
 const S3_INPUT_BUCKET = s3_input_bucket;
 const S3_OUTPUT_BUCKET = s3_output_bucket;
 const INPUT_PATH = input_path;
-const APP_TIER_AMI_ID = app_tier_ami_id;
+const APP_TIER_AMI_ID = 'ami-022e2c2507eb19364;
 
 // Thresholds for scaling actions
 const SCALE_OUT_THRESHOLD = 5;

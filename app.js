@@ -73,7 +73,6 @@ fs.createReadStream('dataset.csv')
 let instanceCount = 0;
 const ec2InstanceSet = new Set();
 
-
 function startServer(predictions) {
     const upload = multer({ dest: 'uploads/' });
     async function handleMessage(receiveParams, res, filenameWithoutExtension) {
@@ -83,24 +82,38 @@ function startServer(predictions) {
                 console.log('No messages found in SQS queue');
                 return res.status(404).send('No classification result found');
             }
-
+    
             const message = receiveResult.Messages[0];
-            const result = message.Body;
-            const recognitionResult = JSON.parse(message.Body).result;
-            const returnedFileName = JSON.parse(message.Body).fileName;
-
+            const messageBody = message.Body;
+    
+            // Log the received message body
+            console.log('Received message:', messageBody);
+    
+            // Attempt to parse the message body as JSON
+            let messageData;
+            try {
+                messageData = JSON.parse(messageBody);
+            } catch (parseError) {
+                // Handle JSON parsing error
+                console.error('Error parsing JSON:', parseError);
+                return res.status(400).send('Invalid JSON data');
+            }
+    
+            // Extract relevant data from the message
+            const { result: recognitionResult, fileName: returnedFileName } = messageData;
+    
             if (returnedFileName == filenameWithoutExtension) {
                 await s3.putObject({
                     Bucket: S3_OUTPUT_BUCKET,
                     Key: filenameWithoutExtension,
                     Body: recognitionResult
                 }).promise();
-
+    
                 await sqs.deleteMessage({
                     QueueUrl: SQS_RESPONSE_URL,
                     ReceiptHandle: message.ReceiptHandle
                 }).promise();
-
+    
                 const prediction = predictions[filenameWithoutExtension];
                 res.send(`${filenameWithoutExtension}:${prediction}`);
             } else {
@@ -112,6 +125,7 @@ function startServer(predictions) {
             res.status(500).send('Internal Server Error');
         }
     }
+    
     // Handle POST request for image upload
     app.post('/', upload.single('inputFile'), (req, res) => {
         if (!req.file) {

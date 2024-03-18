@@ -89,21 +89,19 @@ function startServer(predictions) {
             // Log the received message body
             console.log('Received message:', messageBody);
     
-            // Attempt to parse the message body as JSON
-            let messageData;
-            try {
-                messageData = JSON.parse(messageBody);
-            } catch (parseError) {
-                // Handle non-JSON data
-                console.error('Error parsing JSON:', parseError);
+            // Split the message body into parts
+            const parts = messageBody.split(',');
+    
+            // Check if the message body has the expected format
+            if (parts.length !== 2) {
+                console.error('Unexpected message format:', messageBody);
                 // Continue polling recursively until the correct message is found
                 return handleMessage(receiveParams, res, filenameWithoutExtension);
             }
     
-            // Extract relevant data from the message
-            const { result: recognitionResult, fileName: returnedFileName } = messageData;
+            const [returnedFileName, recognitionResult] = parts;
     
-            if (returnedFileName == filenameWithoutExtension) {
+            if (returnedFileName === filenameWithoutExtension) {
                 await s3.putObject({
                     Bucket: S3_OUTPUT_BUCKET,
                     Key: filenameWithoutExtension,
@@ -125,8 +123,7 @@ function startServer(predictions) {
             console.error('Error receiving message from SQS:', error);
             res.status(500).send('Internal Server Error');
         }
-    }
-    
+    }    
     
     // Handle POST request for image upload
     app.post('/', upload.single('inputFile'), (req, res) => {

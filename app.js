@@ -39,7 +39,7 @@ const APP_TIER_AMI_ID = 'ami-022e2c2507eb19364';
 const SCALE_OUT_THRESHOLD = 5;
 const SCALE_IN_THRESHOLD = 0;
 const SCALE_CHECK_INTERVAL = 10000;
-const MAX_INSTANCES = 10;
+const MAX_INSTANCES = 19;
 const MIN_INSTANCES = 0;
 
 // Tracking for scale-in and scale-out

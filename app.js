@@ -38,6 +38,18 @@ const S3_OUTPUT_BUCKET = s3_output_bucket;
 const INPUT_PATH = input_path;
 const APP_TIER_AMI_ID = app_tier_ami_id;
 
+// Thresholds for scaling actions
+const SCALE_OUT_THRESHOLD = 5;
+const SCALE_IN_THRESHOLD = 0;
+const SCALE_CHECK_INTERVAL = 10000;
+const MAX_INSTANCES = 10;
+const MIN_INSTANCES = 0;
+
+// Tracking for scale-in and scale-out
+let lastActivityTime = Date.now();
+let lastScaleInReqTime = Date.now();
+let scaleOutCooldown = false;
+
 // Create an S3 instance
 const s3 = new AWS.S3();
 

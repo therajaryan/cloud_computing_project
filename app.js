@@ -3,6 +3,7 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const multer = require('multer');
 const AWS = require('aws-sdk');
+const { Consumer } = require('sqs-consumer');
 
 const app = express();
 const port = 8000;

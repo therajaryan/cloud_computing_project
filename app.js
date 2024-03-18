@@ -123,8 +123,8 @@ function startServer(predictions) {
                     await autoScale();
                 }
                 lastActivityTime = Date.now(); // Update last activity time
-
-                while (true) {
+                let messageFound = false;
+                while (!messageFound) {
                     sqs.receiveMessage(receiveParams, async (err, data) => {
                         if (err) {
                             console.error('Error receiving message from SQS:', err);
@@ -158,10 +158,10 @@ function startServer(predictions) {
                                     console.log('Message deleted successfully:', message.MessageId);
                                 }
                             });
+                            messageFound = true;
                             // Return the prediction from the lookup table
                             const prediction = predictions[filenameWithoutExtension];
                             res.send(`${filenameWithoutExtension}:${prediction}`);
-				break;
                         }
                     });
                 }

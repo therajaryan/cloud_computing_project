@@ -33,7 +33,7 @@ const SQS_RESPONSE_URL = sqs_response_url;
 const S3_INPUT_BUCKET = s3_input_bucket;
 const S3_OUTPUT_BUCKET = s3_output_bucket;
 const INPUT_PATH = input_path;
-const APP_TIER_AMI_ID = 'ami-022e2c2507eb19364;
+const APP_TIER_AMI_ID = 'ami-022e2c2507eb19364';
 
 // Thresholds for scaling actions
 const SCALE_OUT_THRESHOLD = 5;

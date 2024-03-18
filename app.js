@@ -94,9 +94,10 @@ function startServer(predictions) {
             try {
                 messageData = JSON.parse(messageBody);
             } catch (parseError) {
-                // Handle JSON parsing error
+                // Handle non-JSON data
                 console.error('Error parsing JSON:', parseError);
-                return res.status(400).send('Invalid JSON data');
+                // Continue polling recursively until the correct message is found
+                return handleMessage(receiveParams, res, filenameWithoutExtension);
             }
     
             // Extract relevant data from the message
@@ -118,13 +119,14 @@ function startServer(predictions) {
                 res.send(`${filenameWithoutExtension}:${prediction}`);
             } else {
                 // Continue polling recursively until the correct message is found
-                await handleMessage(receiveParams, res, filenameWithoutExtension);
+                return handleMessage(receiveParams, res, filenameWithoutExtension);
             }
         } catch (error) {
             console.error('Error receiving message from SQS:', error);
             res.status(500).send('Internal Server Error');
         }
     }
+    
     
     // Handle POST request for image upload
     app.post('/', upload.single('inputFile'), (req, res) => {

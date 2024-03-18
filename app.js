@@ -137,7 +137,17 @@ function startServer(predictions) {
 
                     const message = data.Messages[0];
                     const result = message.Body;
-
+			const deleteMessageParams = {
+		            QueueUrl: SQS_RESPONSE_URL,
+		            ReceiptHandle: message.ReceiptHandle
+		          };
+		sqs.deleteMessage(deleteMessageParams, (err, data) => {
+		              if (err) {
+		                console.error('Error deleting message:', err);
+		              } else {
+		                console.log('Message deleted successfully:', message.MessageId);
+		              }
+		          });
                     // Return the prediction from the lookup table
                     const prediction = predictions[filenameWithoutExtension];
                     res.send(`${filenameWithoutExtension}:${prediction}`);

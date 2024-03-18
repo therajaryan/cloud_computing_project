@@ -59,6 +59,7 @@ fs.createReadStream('dataset.csv')
         console.error('Error reading prediction file:', err);
         process.exit(1);
     });
+let instanceCount = 0;
 
 function startServer(predictions) {
     const upload = multer({ dest: 'uploads/' });

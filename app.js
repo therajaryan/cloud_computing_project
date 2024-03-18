@@ -161,6 +161,7 @@ function startServer(predictions) {
                             // Return the prediction from the lookup table
                             const prediction = predictions[filenameWithoutExtension];
                             res.send(`${filenameWithoutExtension}:${prediction}`);
+				break;
                         }
                     });
                 }

@@ -219,7 +219,7 @@ async function terminateInstance(instanceId) {
     };
     try {
 		instanceCount--;
-        await ec2Client.send(new TerminateInstancesCommand(params));
+        await ec2.terminateInstances(params).promise();
         console.log(`Successfully requested termination of instance ${instanceId}`);
 		ec2InstanceSet.delete(instanceId);
     } catch (error) {

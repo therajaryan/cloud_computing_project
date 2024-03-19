@@ -49,17 +49,19 @@ const readRequests = async () => {
     const sqsMessage = sqsResponse.Messages[0];
     console.log("sqsResponse -> ", sqsResponse);
     console.log("SQS Msg -> ", sqsMessage);
-    const receiptHandle = sqsMessage.ReceiptHandle;
-    console.log(`Message Received: ${sqsMessage.Body}`);
-    const imageBody = sqsMessage.Body;
-
-    await downloadImageFromS3(imageBody.split("/").pop());
-    
-    // Delete received message from SQS
-    await sqs.deleteMessage({
-      QueueUrl: SQS_REQUEST_URL,
-      ReceiptHandle: receiptHandle
-    }).promise();
+    if(sqsMessage){
+      const receiptHandle = sqsMessage.ReceiptHandle;
+      console.log(`Message Received: ${sqsMessage.Body}`);
+      const imageBody = sqsMessage.Body;
+  
+      await downloadImageFromS3(imageBody.split("/").pop());
+      
+      // Delete received message from SQS
+      await sqs.deleteMessage({
+        QueueUrl: SQS_REQUEST_URL,
+        ReceiptHandle: receiptHandle
+      }).promise();
+    }
 
     // After processing current message, re-invoke readRequests after a delay
     setTimeout(readRequests, 0); // Immediately re-invoke

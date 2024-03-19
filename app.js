@@ -73,7 +73,7 @@ const ec2 = new AWS.EC2();
 let instanceCount = 0;
 const ec2InstanceSet = new Set();
 
-function startServer(predictions) {
+const startServer = () => {
     const upload = multer({ dest: 'uploads/' });
     async function handleMessage(receiveParams, res, filenameWithoutExtension) {
         try {
@@ -182,7 +182,6 @@ function startServer(predictions) {
         });
     });
 
-    startServer();
     app.listen(port, async () => {
         console.log(`Server listening on port ${port}`);
 
@@ -289,3 +288,5 @@ async function autoScale() {
         await terminateInstance(first);
     }
 }
+
+startServer();

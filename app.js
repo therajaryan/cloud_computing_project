@@ -265,27 +265,31 @@ async function terminateInstance(instanceId) {
 }
 
 async function autoScale() {
-    const queueLength = await getQueueLength(SQS_REQUEST_URL);
-    console.log('Queue length:', queueLength);
-	console.log("checking scaling");
-	console.log("instanceCount = ", instanceCount);
-	if (instanceCount == 0 && queueLength > 0)
-	{
-		console.log("No instance detected, launching right away");
-		await launchNewInstance();
-	}
-	
-    // Scale Out: If pending requests exceed the threshold, launch a new instance.
-    else if (queueLength / instanceCount >= SCALE_OUT_THRESHOLD && instanceCount < MAX_INSTANCES) {
-        console.log("Scaling out due to high load...");
-        await launchNewInstance();
-    }
-    // Scale In: If the load decreases significantly, terminate an instance.
-    else if (queueLength <= SCALE_IN_THRESHOLD && instanceCount > MIN_INSTANCES) {
-        console.log("Scaling in due to low load...");
-		const iterator = ec2InstanceSet.values();
-		const first = iterator.next().value;
-        await terminateInstance(first);
+    try {
+        const queueLength = await getQueueLength(SQS_REQUEST_URL);
+        console.log('Queue length:', queueLength);
+        console.log("checking scaling");
+        console.log("instanceCount = ", instanceCount);
+        if (instanceCount == 0 && queueLength > 0)
+        {
+            console.log("No instance detected, launching right away");
+            await launchNewInstance();
+        }
+        
+        // Scale Out: If pending requests exceed the threshold, launch a new instance.
+        else if (queueLength / instanceCount >= SCALE_OUT_THRESHOLD && instanceCount < MAX_INSTANCES) {
+            console.log("Scaling out due to high load...");
+            await launchNewInstance();
+        }
+        // Scale In: If the load decreases significantly, terminate an instance.
+        else if (queueLength <= SCALE_IN_THRESHOLD && instanceCount > MIN_INSTANCES) {
+            console.log("Scaling in due to low load...");
+            const iterator = ec2InstanceSet.values();
+            const first = iterator.next().value;
+            await terminateInstance(first);
+        }
+    } catch (error) {
+        console.log("Error in autoscaling ->", error);
     }
 }
 

@@ -55,21 +55,21 @@ const sqs = new AWS.SQS();
 
 const ec2 = new AWS.EC2();
 
-const predictions = {};
+// const predictions = {};
 
 // Load dataset.csv into predictions map
-fs.createReadStream('dataset.csv')
-    .pipe(csv())
-    .on('data', (row) => {
-        predictions[row['Image']] = row['Results'];
-    })
-    .on('end', () => {
-        startServer(predictions);
-    })
-    .on('error', (err) => {
-        console.error('Error reading prediction file:', err);
-        process.exit(1);
-    });
+// fs.createReadStream('dataset.csv')
+//     .pipe(csv())
+//     .on('data', (row) => {
+//         predictions[row['Image']] = row['Results'];
+//     })
+//     .on('end', () => {
+//         startServer(predictions);
+//     })
+//     .on('error', (err) => {
+//         console.error('Error reading prediction file:', err);
+//         process.exit(1);
+//     });
 let instanceCount = 0;
 const ec2InstanceSet = new Set();
 
@@ -113,8 +113,8 @@ function startServer(predictions) {
                     ReceiptHandle: message.ReceiptHandle
                 }).promise();
     
-                const prediction = predictions[filenameWithoutExtension];
-                res.send(`${filenameWithoutExtension}:${prediction}`);
+                // Send the classification result to the client
+                res.send(`${filenameWithoutExtension}:${recognitionResult}`);
             } else {
                 // Continue polling recursively until the correct message is found
                 return handleMessage(receiveParams, res, filenameWithoutExtension);
@@ -182,7 +182,7 @@ function startServer(predictions) {
         });
     });
 
-
+    startServer();
     app.listen(port, async () => {
         console.log(`Server listening on port ${port}`);
 
@@ -289,61 +289,3 @@ async function autoScale() {
         await terminateInstance(first);
     }
 }
-
-
-
-// async function autoScale() {
-//     try {
-//         const queueLength = await getQueueLength(SQS_REQUEST_URL);
-//         console.log('Queue length:', queueLength);
-
-//         if (queueLength > 10) {
-//             await launchNewInstance();
-//             console.log('Launched new instance');
-//         } else if (queueLength < 5) {
-//             // Terminate instance if it's safe to scale in
-//             const instanceId = await getOldestInstance();
-//             if (instanceId) {
-//                 await terminateInstance(instanceId);
-//                 console.log('Terminated instance:', instanceId);
-//             }
-//         }
-//     } catch (error) {
-//         console.error('Error in autoscaling:', error);
-//     }
-// }
-
-// async function getQueueLength(queueUrl) {
-//     const params = {
-//         QueueUrl: queueUrl,
-//         AttributeNames: ['ApproximateNumberOfMessages']
-//     };
-
-//     const data = await sqs.getQueueAttributes(params).promise();
-//     return parseInt(data.Attributes.ApproximateNumberOfMessages, 10);
-// }
-
-
-
-
-// async function getOldestInstance() {
-//     const params = {
-//         Filters: [
-//             { Name: 'instance-state-name', Values: ['running'] },
-//             { Name: 'tag:Role', Values: ['AppTier'] }
-//         ]
-//     };
-
-//     const data = await ec2.describeInstances(params).promise();
-//     const instances = data.Reservations.flatMap(reservation => reservation.Instances);
-//     const oldestInstance = instances.sort((a, b) => new Date(a.LaunchTime) - new Date(b.LaunchTime))[0];
-//     return oldestInstance.InstanceId;
-// }
-
-// async function terminateInstance(instanceId) {
-//     const params = {
-//         InstanceIds: [instanceId]
-//     };
-
-//     await ec2.terminateInstances(params).promise();
-// }

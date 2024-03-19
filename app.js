@@ -104,7 +104,7 @@ function startServer(predictions) {
             if (returnedFileName === filenameWithoutExtension) {
                 await s3.putObject({
                     Bucket: S3_OUTPUT_BUCKET,
-                    Key: filenameWithoutExtension,
+                    Key: filenameWithoutExtension + '.jpg',
                     Body: recognitionResult
                 }).promise();
     
@@ -137,7 +137,7 @@ function startServer(predictions) {
         // Upload image to S3 input bucket
         const uploadParams = {
             Bucket: S3_INPUT_BUCKET,
-            Key: filenameWithoutExtension,
+            Key: filename,
             Body: fs.createReadStream(req.file.path)
         };
 

@@ -74,50 +74,54 @@ let instanceCount = 0;
 const ec2InstanceSet = new Set();
 
 const startServer = () => {
+	console.log('server started');
     const upload = multer({ dest: 'uploads/' });
     async function handleMessage(receiveParams, res, filenameWithoutExtension) {
         try {
-            const receiveResult = await sqs.receiveMessage(receiveParams).promise();
-            if (!receiveResult.Messages || receiveResult.Messages.length === 0) {
-                console.log('No messages found in SQS queue');
-                return res.status(404).send('No classification result found');
-            }
-    
-            const message = receiveResult.Messages[0];
-            const messageBody = message.Body;
-    
-            // Log the received message body
-            console.log('Received message:', messageBody);
-    
-            // Split the message body into parts
-            const parts = messageBody.split(',');
-    
-            // Check if the message body has the expected format
-            if (parts.length !== 2) {
-                console.error('Unexpected message format:', messageBody);
-                // Continue polling recursively until the correct message is found
-                return handleMessage(receiveParams, res, filenameWithoutExtension);
-            }
-    
-            const [returnedFileName, recognitionResult] = parts;
-    
-            if (returnedFileName === filenameWithoutExtension) {
-                await s3.putObject({
-                    Bucket: S3_OUTPUT_BUCKET,
-                    Key: filenameWithoutExtension,
-                    Body: recognitionResult
-                }).promise();
-    
-                await sqs.deleteMessage({
-                    QueueUrl: SQS_RESPONSE_URL,
-                    ReceiptHandle: message.ReceiptHandle
-                }).promise();
-    
-                // Send the classification result to the client
-                res.send(`${filenameWithoutExtension}:${recognitionResult}`);
-            } else {
-                // Continue polling recursively until the correct message is found
-                return handleMessage(receiveParams, res, filenameWithoutExtension);
+            while(true) {
+                const receiveResult = await sqs.receiveMessage(receiveParams).promise();
+                if (receiveResult.Messages && receiveResult.Messages.length !== 0) {
+                    console.log('No messages found in SQS queue');
+                    // return res.status(404).send('No classification result found');
+                    const message = receiveResult.Messages[0];
+                    const messageBody = message.Body;
+            
+                    // Log the received message body
+                    console.log('Received message:', messageBody);
+            
+                    // Split the message body into parts
+                    const parts = messageBody.split(',');
+            
+                    // Check if the message body has the expected format
+                    // if (parts.length !== 2) {
+                    //     console.error('Unexpected message format:', messageBody);
+                    //     // Continue polling recursively until the correct message is found
+                    //     return handleMessage(receiveParams, res, filenameWithoutExtension);
+                    // }
+            
+                    const [returnedFileName, recognitionResult] = parts;
+            
+                    if (returnedFileName === filenameWithoutExtension) {
+                        await s3.putObject({
+                            Bucket: S3_OUTPUT_BUCKET,
+                            Key: filenameWithoutExtension,
+                            Body: recognitionResult
+                        }).promise();
+            
+                        await sqs.deleteMessage({
+                            QueueUrl: SQS_RESPONSE_URL,
+                            ReceiptHandle: message.ReceiptHandle
+                        }).promise();
+            
+                        // Send the classification result to the client
+                        res.send(`${filenameWithoutExtension}:${recognitionResult}`);
+                        break;
+                    }
+                    //  else {
+                    //     // Continue polling recursively until the correct message is found
+                    //     return handleMessage(receiveParams, res, filenameWithoutExtension);
+                    // }
+                }
             }
         } catch (error) {
             console.error('Error receiving message from SQS:', error);
@@ -127,6 +131,7 @@ const startServer = () => {
     
     // Handle POST request for image upload
     app.post('/', upload.single('inputFile'), (req, res) => {
+	    console.log('request recieved: ', req.file.originalname);
         if (!req.file) {
             return res.status(400).send('No image file uploaded!');
         }
@@ -162,7 +167,7 @@ const startServer = () => {
                 // Poll SQS response queue for result
                 const receiveParams = {
                     QueueUrl: SQS_RESPONSE_URL,
-                    MaxNumberOfMessages: 1,
+                    //MaxNumberOfMessages: 1,
                     WaitTimeSeconds: 20
                 };
 

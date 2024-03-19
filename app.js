@@ -186,7 +186,7 @@ const startServer = () => {
         console.log(`Server listening on port ${port}`);
 
         // Start autoscaling task
-        // setInterval(autoScale, 10000);
+        setInterval(autoScale, 10000);
     });
 }
 
